@@ -113,8 +113,10 @@ endpoints:
       # Required for Anthropic models on Databricks gateway (they mandate max_tokens)
       addParams:
         max_tokens: 4096
-      # Drop params not supported by Databricks gateway (adjust as needed)
-      # dropParams: ['stop', 'user', 'frequency_penalty', 'presence_penalty']
+      # Drop params unsupported by Databricks gateway Anthropic models.
+      # Uses camelCase to match LangChain's internal llmConfig keys.
+      # Safe to drop for GPT models too — these are optional OpenAI-specific params.
+      dropParams: ['stop', 'user', 'frequencyPenalty', 'presencePenalty', 'n', 'logprobs', 'topLogprobs', 'logitBias', 'stream_options']
       # Add custom headers for governance tracking
       # headers:
       #   x-conversation-id: '{{LIBRECHAT_BODY_CONVERSATIONID}}'

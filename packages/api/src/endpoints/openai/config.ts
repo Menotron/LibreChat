@@ -1,5 +1,7 @@
+import fetch from 'node-fetch';
 import { ProxyAgent } from 'undici';
 import { Providers } from '@librechat/agents';
+import { logger } from '@librechat/data-schemas';
 import { KnownEndpoints, EModelEndpoint } from 'librechat-data-provider';
 import type * as t from '~/types';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
@@ -8,6 +10,7 @@ import { getGoogleConfig } from '~/endpoints/google/llm';
 import { transformToOpenAIConfig } from './transform';
 import { constructAzureURL } from '~/utils/azure';
 import { createFetch } from '~/utils/generators';
+import { isEnabled } from '~/utils/common';
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -181,6 +184,27 @@ export function getOpenAIConfig(
     configOptions.fetch = createFetch({
       directEndpoint: directEndpoint,
       reverseProxyUrl: configOptions?.baseURL,
+    }) as unknown as Fetch;
+  }
+
+  if (isEnabled(process.env.DEBUG_LOGGING)) {
+    const baseFetch = configOptions.fetch as typeof fetch | undefined;
+    configOptions.fetch = (async (url: fetch.RequestInfo, init?: fetch.RequestInit) => {
+      try {
+        const body = init?.body ? JSON.parse(init.body as string) : undefined;
+        if (body) {
+          const { messages: _m, ...rest } = body;
+          logger.debug(
+            `[LLM Request] ${url}\n` +
+              `  Body (excl messages): ${JSON.stringify(rest, null, 2)}\n` +
+              `  Message count: ${_m?.length ?? 0}`,
+          );
+        }
+      } catch {
+        logger.debug(`[LLM Request] ${url} (body not JSON)`);
+      }
+      const doFetch = baseFetch ?? fetch;
+      return (await doFetch(url, init as fetch.RequestInit)) as unknown as Response;
     }) as unknown as Fetch;
   }
 

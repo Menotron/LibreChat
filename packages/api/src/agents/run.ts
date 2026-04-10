@@ -1,5 +1,6 @@
 import { Run, Providers, Constants } from '@librechat/agents';
 import { providerEndpointMap, KnownEndpoints } from 'librechat-data-provider';
+import { logger } from '@librechat/data-schemas';
 import type {
   SummarizationConfig as AgentSummarizationConfig,
   MultiAgentGraphConfig,
@@ -380,6 +381,14 @@ export async function createRun({
       agent.baseContextTokens,
       agent.maxContextTokens,
     );
+
+    if (process.env.DEBUG_LOGGING === 'true') {
+      const { apiKey: _k, ...safeConfig } = llmConfig as Record<string, unknown>;
+      logger.debug(
+        `[Agent LLM Config] provider=${provider} model=${safeConfig.model}\n` +
+          `  llmConfig: ${JSON.stringify(safeConfig, null, 2)}`,
+      );
+    }
 
     const reasoningKey = getReasoningKey(provider, llmConfig, agent.endpoint);
     const agentInput: AgentInputs = {
