@@ -110,6 +110,9 @@ endpoints:
       titleModel: 'databricks-gpt-oss-20b'
       modelDisplayLabel: 'AI Gateway'
       iconURL: '/assets/databricks.svg'
+      # Required for Anthropic models on Databricks gateway (they mandate max_tokens)
+      addParams:
+        max_tokens: 4096
       # Drop params not supported by Databricks gateway (adjust as needed)
       # dropParams: ['stop', 'user', 'frequency_penalty', 'presence_penalty']
       # Add custom headers for governance tracking
