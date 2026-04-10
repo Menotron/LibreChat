@@ -2,9 +2,67 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# LibreChat
+# Enterprise AI Platform
 
-## Project Overview
+## Vision
+
+This is an **enterprise AI agentic harness** — a governed, branded alternative to ChatGPT and Claude desktop apps for business users. Built on [LibreChat](https://github.com/danny-avila/LibreChat), it provides a unified chat interface, agentic capabilities (MCP, code execution, RAG, custom agents), and enterprise controls — all routed exclusively through **Databricks AI Gateway** for governance, inference tables, and cost tracking.
+
+**We are not building a toy.** This is the organization's primary AI interaction surface. Every decision should optimize for:
+- **Reliability** — users depend on this daily; downtime and bugs erode trust
+- **Maintainability** — code must be clear enough that any engineer can debug production issues at 2am
+- **Scalability** — architecture must handle growth from pilot team to full organization
+- **Security** — enterprise data flows through this; auth, isolation, and audit are non-negotiable
+- **Upstream compatibility** — we must stay mergeable with LibreChat to inherit its rapid innovation
+
+## Upstream Relationship
+
+This is a **maintained fork**, not a divergent copy. LibreChat is one of the fastest-moving open-source AI projects — new model support, agent capabilities, MCP integrations, streaming improvements, and bug fixes land regularly. Our strategy:
+
+### What We Customize
+- **Auth**: Azure AD SSO only (social logins removed)
+- **LLM routing**: Databricks AI Gateway exclusively (provider code config-disabled, not deleted)
+- **Branding**: Enterprise visual identity
+- **Deployment**: Azure App Service (Fly.io removed, Helm kept)
+- **Governance**: Inference tables, audit logging, RBAC
+
+### What We Inherit
+- **Everything else.** Agent framework, MCP support, streaming, file handling, UI components, data schemas, conversation management — all upstream. We benefit from their testing, community bug reports, and feature development.
+
+### Merge Strategy
+- **Branch**: `enterprise/phase4-pruning` tracks our enterprise changes
+- **Upstream remote**: `danny-avila/LibreChat` `main` branch
+- **Sync cadence**: Review upstream releases regularly. Cherry-pick or merge when:
+  - Security patches or critical bug fixes land
+  - New model/provider support we need (e.g., new Claude or GPT models)
+  - Agent/MCP framework improvements
+  - Streaming or performance fixes
+  - Features that align with our roadmap (RAG improvements, RBAC enhancements)
+- **Conflict zones**: Changes concentrate in `api/strategies/`, `librechat.yaml`, `.env`, and deleted files (Assistants API, social logins). These are the merge friction points — keep them minimal.
+- **Golden rule**: Prefer config-disabling over code-deleting. The less we delete, the fewer conflicts on merge. If upstream adds a feature we don't need, disable it in `librechat.yaml` or `.env` rather than ripping out code.
+
+### Before Merging Upstream
+1. Read the upstream changelog / release notes
+2. `git fetch upstream && git log upstream/main --oneline -20` — scan for relevant changes
+3. Identify conflict-prone files (strategies, config, deleted code)
+4. Merge on a throwaway branch first, resolve conflicts, build, test
+5. Only fast-forward the enterprise branch after validation
+
+## Enterprise Code Standards
+
+Beyond LibreChat's existing code style (below), enterprise code must also meet:
+
+- **No silent failures.** Errors must be logged with enough context to diagnose in production. Use structured logging (`logger.error` with metadata), not `console.log`.
+- **Graceful degradation.** If a non-critical service (Redis cache, Meilisearch) is unavailable, the app should still serve core chat functionality.
+- **Configuration over code.** Behavioral differences between environments (dev, staging, prod) must be driven by env vars or `librechat.yaml`, never by code branches checking `NODE_ENV`.
+- **Secrets never in code.** All credentials flow through env vars or Key Vault references. No hardcoded URLs, keys, or tokens — even in comments or examples (use `<placeholder>` syntax).
+- **Audit trail.** Changes that affect auth, RBAC, or data access must be logged. User-facing actions should be traceable through Databricks inference tables.
+- **Defensive at boundaries.** Validate all external input (user requests, Databricks API responses, webhook payloads). Trust internal code paths and framework guarantees.
+- **Horizontal-scale ready.** No in-process state that breaks with multiple instances. Sessions in Redis, file uploads in Blob Storage, job coordination through the existing IJobStore/IEventTransport abstractions.
+
+---
+
+## Project Overview (Monorepo)
 
 LibreChat is a monorepo with the following key workspaces:
 
@@ -17,7 +75,7 @@ LibreChat is a monorepo with the following key workspaces:
 | `/client` | TypeScript/React | Frontend | `packages/data-provider`, `packages/client` | Frontend SPA |
 | `/packages/client` | TypeScript | Frontend | `packages/data-provider` | Shared frontend utilities |
 
-The source code for `@librechat/agents` (major backend dependency, same team) is at `/home/danny/agentus`.
+`@librechat/agents` is a major backend dependency (upstream maintains it separately).
 
 ---
 
@@ -43,7 +101,7 @@ Express.js server in `/api` acts as a thin JS wrapper. New backend logic lives i
 
 ### Authentication & Multi-Tenancy
 
-Auth uses Passport.js with strategies: local, JWT, LDAP, OAuth 2.0 (Google/GitHub/Discord/etc.), SAML 2.0, OpenID Connect. All strategies are in `/api/server/strategies/`.
+Auth uses Passport.js. **Enterprise deployment**: local (admin break-glass) + OpenID Connect (Azure AD SSO). Social login strategies (Google/GitHub/Discord/Facebook/Apple) have been removed. LDAP and SAML strategies remain in upstream code but are not configured. All strategies are in `/api/server/strategies/`.
 
 Multi-tenant isolation: `tenantContextMiddleware` in `/packages/api/src/middleware/tenant.ts` propagates `req.user.tenantId` into AsyncLocalStorage. A Mongoose plugin reads ALS context to auto-scope all queries to the current tenant. Strict mode (`TENANT_ISOLATION_STRICT=true`) returns 403 for requests without tenantId. Reverse proxy sets `X-Tenant-Id` header.
 
@@ -252,6 +310,17 @@ Always use project memory files in .claude over user level memory and plan files
 
 Commit after a complete **plan -> implement -> validate** cycle. Do not commit minor intermediate edits. Commits represent coherent, reviewable progress. One feature or substantial task = one commit boundary.
 
+## Upstream Awareness
+
+When modifying any file, consider:
+- **Is this file likely to change upstream?** If yes, minimize our diff. Add config switches rather than rewriting logic.
+- **Are we duplicating something upstream already solved?** Check the latest upstream before building from scratch.
+- **Will this survive a merge?** Isolated additions (new files, config) merge cleanly. Inline edits to hot upstream files cause conflicts.
+
+Files with high upstream churn (expect merge conflicts): `package.json`, `api/server/index.js`, `packages/api/src/endpoints/`, `client/src/components/Chat/`, `packages/data-provider/src/`. Touch these with surgical precision.
+
+Files we own entirely (no upstream conflicts): `librechat.yaml`, `.env.enterprise`, `Dockerfile.enterprise`, `scripts/`, `docker-compose.azure.yml`, `.claude/`, `planner.md`, `tasks.md`.
+
 ## Behaviour
 
 - Read existing files before writing code.
@@ -260,4 +329,5 @@ Commit after a complete **plan -> implement -> validate** cycle. Do not commit m
 - Test before declaring done.
 - Be concise in output, thorough in reasoning.
 - No openers, closers, or filler.
+- When adding enterprise features, isolate them in new files or behind env var gates where possible — this keeps upstream merges clean.
 - User instructions override this file.

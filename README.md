@@ -1,8 +1,8 @@
 # Enterprise AI Platform
 
-Self-hosted AI chat platform powered by [LibreChat](https://github.com/danny-avila/LibreChat), configured exclusively for **Databricks AI Gateway** with Azure AD SSO.
+A governed, enterprise-grade alternative to ChatGPT and Claude desktop — built as a **maintained fork** of [LibreChat](https://github.com/danny-avila/LibreChat). Provides a unified chat interface with agentic capabilities (MCP, code execution, RAG, custom agents), routed exclusively through **Databricks AI Gateway** for governance, inference tables, and cost tracking. Authenticated via Azure AD SSO.
 
-All LLM inference routes through Databricks for governance, inference tables, and OpenTelemetry.
+We stay aligned with upstream LibreChat to inherit its rapid innovation (new models, streaming, agent framework) while adding enterprise controls, branding, and infrastructure.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Browser → Azure App Service (Docker) → LibreChat → Databricks AI Gateway �
                                      MongoDB (Cosmos DB)
 ```
 
-**Endpoints:** `agents` + `custom` (Databricks) only. All other providers config-disabled.
+**Endpoints:** `custom` (Databricks) only. Agents endpoint available but hidden until pre-built agents are ready. All other providers config-disabled.
 
 **Auth:** Azure AD / Entra ID (OpenID Connect) + local admin fallback.
 
@@ -74,23 +74,50 @@ Changes from upstream LibreChat:
 | Removed Fly.io config | Deploying on Azure App Service |
 | Added Databricks AI Gateway endpoint | Sole LLM provider |
 | Updated .devcontainer for Codespaces | Node 20 + enterprise env wiring |
+| Placeholder branding (logo, brand color, PWA name) | Enterprise visual identity |
+| Enterprise Dockerfile with HEALTHCHECK | Azure App Service health monitoring |
 
-Provider endpoint code kept config-disabled (`ENDPOINTS=agents,custom`) for upstream merge compatibility.
+Provider endpoint code kept config-disabled (`ENDPOINTS=custom`) for upstream merge compatibility.
 
 ## Deployment
 
 **Target:** Azure App Service (Docker)
 
-See `helm/` for Kubernetes deployment if migrating to AKS later.
+### Quick Deploy
+
+```bash
+# 1. Provision Azure infrastructure
+bash scripts/azure-deploy.sh
+
+# 2. Build and push Docker image
+az acr build --registry <acr-name> --image enterprise-ai:latest --file Dockerfile.enterprise .
+
+# 3. Set remaining app settings (DATABRICKS_GATEWAY_URL, OPENID_*, DOMAIN_*)
+# 4. Create admin user via App Service SSH
+# 5. Restart: az webapp restart --name <app-name> -g <resource-group>
+```
+
+### Local Testing (Docker)
+
+```bash
+cp .env.enterprise .env
+# Fill in DATABRICKS_API_KEY, DATABRICKS_GATEWAY_URL, secrets
+docker compose -f docker-compose.azure.yml up --build
+```
+
+### Azure Resources
 
 | Service | Azure Resource |
 |---|---|
 | App | App Service (Web App for Containers) |
 | Database | Cosmos DB for MongoDB API |
 | Cache | Azure Cache for Redis |
+| Files | Azure Blob Storage |
 | Vector DB | PostgreSQL Flexible Server + pgvector |
 | Secrets | Azure Key Vault |
 | Registry | Azure Container Registry |
+
+See `helm/` for Kubernetes deployment if migrating to AKS later.
 
 ## Development
 
@@ -101,8 +128,22 @@ npm run build          # Full build via Turborepo
 npm run lint           # ESLint across all workspaces
 ```
 
-## Upstream
+## Upstream Sync
 
-Based on [LibreChat v0.8.4](https://github.com/danny-avila/LibreChat). Branch `enterprise/phase4-pruning` tracks enterprise-specific changes.
+**Maintained fork** of [LibreChat v0.8.4](https://github.com/danny-avila/LibreChat). Branch `enterprise/phase4-pruning` tracks enterprise-specific changes.
 
-To sync upstream: merge `main` from `danny-avila/LibreChat`, resolve conflicts in modified files.
+We intentionally stay close to upstream to inherit bug fixes, new model support, agent/MCP improvements, and streaming enhancements. Enterprise customizations are isolated in config files and new files where possible.
+
+```bash
+# Sync upstream
+git remote add upstream https://github.com/danny-avila/LibreChat.git  # one-time
+git fetch upstream
+git checkout -b merge/upstream-YYYY-MM-DD  # throwaway branch
+git merge upstream/main
+# Resolve conflicts (concentrated in api/strategies/, deleted files, package.json)
+npm run build && npm run lint  # validate
+# If clean: fast-forward enterprise branch
+```
+
+**Conflict zones**: `api/strategies/` (social logins removed), deleted Assistants API files, `package.json`.
+**Safe zone (we own)**: `librechat.yaml`, `.env.enterprise`, `Dockerfile.enterprise`, `scripts/`, `.claude/`.

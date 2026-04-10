@@ -1,0 +1,68 @@
+# docker-compose.azure.yml
+# Production-like local testing environment mirroring Azure deployment
+# Usage: docker compose -f docker-compose.azure.yml up --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.enterprise
+      target: api-build
+    container_name: enterprise-ai
+    ports:
+      - "3080:3080"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - REDIS_URI=redis://redis:6379
+      - USE_REDIS=true
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/api/logs
+      - ./images:/app/client/public/images
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  mongodb:
+    image: mongo:8.0.20
+    container_name: enterprise-ai-mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    command: mongod --noauth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: enterprise-ai-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+  redis_data:

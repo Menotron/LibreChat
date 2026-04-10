@@ -51,7 +51,7 @@
   --amber-800: #92400e;
   --amber-900: #78350f;
   --amber-950: #451a03;
-  --brand-purple: #ab68ff;
+  --brand-purple: #2563eb;
   --gizmo-gray-500: #999;
   --gizmo-gray-600: #666;
   --gizmo-gray-950: #0f0f0f;
@@ -63,7 +63,7 @@
   --markdown-font-size: 1rem;
 }
 html {
-  --brand-purple: #ab68ff;
+  --brand-purple: #2563eb;
   --presentation: var(--white);
   --text-primary: var(--gray-800);
   --text-secondary: var(--gray-600);
@@ -126,7 +126,7 @@ html {
   --switch-unchecked: 0 0% 58%;
 }
 .dark {
-  --brand-purple: #ab68ff;
+  --brand-purple: #2563eb;
   --presentation: var(--gray-800);
   --text-primary: var(--gray-100);
   --text-secondary: var(--gray-300);

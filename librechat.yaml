@@ -6,12 +6,12 @@ version: 1.3.7
 
 cache: true
 
-# File storage (local for now, switch to Azure Blob in production)
+# File storage: "local" for dev, "azure_blob" for Azure App Service production
 fileStrategy: "local"
 
 # Interface configuration
 interface:
-  customWelcome: 'Welcome to Enterprise AI. Select a model and start chatting.'
+  customWelcome: 'Welcome to Enterprise AI, {{user.name}}. Select a model to start.'
   fileSearch: true
   privacyPolicy:
     externalUrl: 'https://yourcompany.com/privacy'

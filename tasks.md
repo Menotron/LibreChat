@@ -22,33 +22,40 @@ All todos and phased tasks for the current work stream.
 
 ---
 
-## Phase 1: Config Foundation
+## Phase 1: Config Foundation [COMPLETE]
 
 - [x] Create librechat.yaml with Databricks AI Gateway endpoint
 - [x] Create .env.enterprise template
-- [x] Configure ENDPOINTS=agents,custom
+- [x] Configure ENDPOINTS (started agents+custom, now custom-only)
 - [x] Update model list to match actual Databricks serving endpoints
+- [x] Add dropParams for Databricks gateway compatibility
+- [x] Add debug logging (config.ts, run.ts) gated by DEBUG_LOGGING
 
-## Phase 2: Custom Branding
+## Phase 2: Custom Branding [COMPLETE]
 
 - [x] Add placeholder databricks.svg icon
-- [ ] Replace logo with enterprise branding
-- [ ] Override theme CSS variables
-- [ ] Finalize APP_TITLE, CUSTOM_FOOTER, welcome message
+- [x] Replace logo.svg with text-based "Enterprise AI" placeholder
+- [x] Update brand color (--brand-purple: #ab68ff → #2563eb)
+- [x] Update PWA manifest name to "Enterprise AI"
+- [x] Uncomment CUSTOM_FOOTER in .env.enterprise
+- [x] Add {{user.name}} to welcome message in librechat.yaml
+- [ ] Replace with real brand assets when available
 
-## Phase 3: Azure App Service Deployment
+## Phase 3: Azure App Service Deployment [SCRIPTS READY]
 
-- [ ] Create/update Dockerfile for enterprise
-- [ ] Set up Azure Container Registry (ACR)
-- [ ] Configure App Service (Web App for Containers)
-- [ ] Set up Cosmos DB for MongoDB API
-- [ ] Configure Azure Cache for Redis
-- [ ] Set up PostgreSQL + pgvector for RAG
-- [ ] Configure Key Vault for secrets
-- [ ] Custom domain + TLS
-- [ ] Deployment slots (staging + production)
+- [x] Create Dockerfile.enterprise (multi-stage, HEALTHCHECK, OCI labels, baked config)
+- [x] Create scripts/azure-deploy.sh (full az CLI provisioning)
+- [x] Create docker-compose.azure.yml (local production-like testing)
+- [x] Add Azure Blob Storage config to .env.enterprise
+- [x] Update librechat.yaml fileStrategy comment
+- [ ] Provision Azure resources (run azure-deploy.sh with real subscription)
+- [ ] Build and push Docker image to ACR
+- [ ] Configure remaining app settings (DATABRICKS_GATEWAY_URL, OPENID_*)
+- [ ] Create admin user on App Service
+- [ ] Set up custom domain + TLS
+- [ ] Configure deployment slots (staging + production)
 
-## Phase 4: Codebase Pruning
+## Phase 4: Codebase Pruning [COMPLETE]
 
 - [x] Remove social login strategies (Discord, Facebook, GitHub, Google, Apple)
 - [x] Remove OpenAI Assistants API code (routes, controllers, services, middleware)
@@ -75,7 +82,17 @@ All todos and phased tasks for the current work stream.
 
 ---
 
-## Codespace Smoke Test
+## Ongoing: Upstream Sync
+
+- [ ] Add upstream remote: `git remote add upstream https://github.com/danny-avila/LibreChat.git`
+- [ ] Review upstream releases for security patches and bug fixes
+- [ ] Evaluate new agent/MCP features for enterprise adoption
+- [ ] First upstream merge (from v0.8.4 baseline to latest)
+- [ ] Document merge conflict resolution patterns
+
+---
+
+## Codespace Smoke Test [COMPLETE]
 
 - [x] Push to GitHub (Menotron/LibreChat, branch enterprise/phase4-pruning)
 - [x] Launch Codespace, npm ci + build
@@ -85,7 +102,7 @@ All todos and phased tasks for the current work stream.
 - [x] Fix 403 (PAT scope: serving.serving-endpoints-query)
 - [x] Fix 404 (model names: databricks-claude-sonnet-4-6 etc.)
 - [x] Verify chat completion works with GPT-oss models
-- [~] Fix Anthropic model 400 errors (debug logging + dropParams added)
-- [ ] Verify Anthropic models work after dropParams fix
-- [ ] Verify all models in dropdown
-- [ ] Test agents endpoint
+- [x] Fix Anthropic model 400 errors (dropParams stripped OpenAI-only params)
+- [x] Verify Anthropic models work (opus-4-5, haiku-4-5, sonnet-4-5, opus-4-1 all confirmed)
+- [x] Verify multi-turn conversations work (model switching mid-convo confirmed)
+- [x] Hide agents endpoint (ENDPOINTS=custom) for cleaner UX
