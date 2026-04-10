@@ -6,7 +6,6 @@ const {
   uaParser,
   checkBan,
 } = require('~/server/middleware');
-const { avatar: asstAvatarRouter } = require('~/server/routes/assistants/v1');
 const { avatar: agentAvatarRouter } = require('~/server/routes/agents/v1');
 const { createMulterInstance } = require('./multer');
 
@@ -47,13 +46,10 @@ const initialize = async () => {
   router.post('/images', upload.single('file'));
   router.post('/images/avatar', upload.single('file'));
   router.post('/images/agents/:agent_id/avatar', upload.single('file'));
-  router.post('/images/assistants/:assistant_id/avatar', upload.single('file'));
-
   router.use('/', files);
   router.use('/images', images);
   router.use('/images/avatar', avatar);
   router.use('/images/agents', agentAvatarRouter);
-  router.use('/images/assistants', asstAvatarRouter);
   return router;
 };
 

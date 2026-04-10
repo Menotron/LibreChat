@@ -1,18 +1,29 @@
 {
+  "name": "LibreChat Enterprise",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces",
   "customizations": {
     "vscode": {
-      "extensions": [],
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next"
+      ],
       "settings": {
-        "terminal.integrated.profiles.linux": {
-          "bash": null
-        }
+        "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
   },
-  "postCreateCommand": "",
-  "features": { "ghcr.io/devcontainers/features/git:1": {} },
+  "postCreateCommand": "cp .env.enterprise .env 2>/dev/null; npm ci && npm run build",
+  "forwardPorts": [3080],
+  "portsAttributes": {
+    "3080": { "label": "LibreChat", "onAutoForward": "openBrowser" },
+    "27017": { "label": "MongoDB", "onAutoForward": "ignore" }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   "remoteUser": "vscode"
 }

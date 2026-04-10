@@ -14,7 +14,6 @@ const {
   AgentCapabilities,
   checkOpenAIStorage,
   removeNullishValues,
-  isAssistantsEndpoint,
   getEndpointFileConfig,
   documentParserMimeTypes,
 } = require('librechat-data-provider');
@@ -26,8 +25,6 @@ const {
   resizeAndConvert,
   resizeImageBuffer,
 } = require('~/server/services/Files/images');
-const { addResourceFileId, deleteResourceFileId } = require('~/server/controllers/assistants/v2');
-const { getOpenAIClient } = require('~/server/controllers/assistants/helpers');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
 const { getFileStrategy } = require('~/server/utils/getFileStrategy');
 const { checkCapability } = require('~/server/services/Config');
@@ -120,36 +117,9 @@ function enqueueDeleteOperation({ req, file, deleteFile, promises, resolvedFileI
  * @returns {Promise<void>}
  */
 const processDeleteRequest = async ({ req, files }) => {
-  const appConfig = req.config;
   const resolvedFileIds = [];
   const deletionMethods = {};
   const promises = [];
-
-  /** @type {Record<string, OpenAI | undefined>} */
-  const client = { [FileSources.openai]: undefined, [FileSources.azure]: undefined };
-  const initializeClients = async () => {
-    if (appConfig.endpoints?.[EModelEndpoint.assistants]) {
-      const openAIClient = await getOpenAIClient({
-        req,
-        overrideEndpoint: EModelEndpoint.assistants,
-      });
-      client[FileSources.openai] = openAIClient.openai;
-    }
-
-    if (!appConfig.endpoints?.[EModelEndpoint.azureOpenAI]?.assistants) {
-      return;
-    }
-
-    const azureClient = await getOpenAIClient({
-      req,
-      overrideEndpoint: EModelEndpoint.azureAssistants,
-    });
-    client[FileSources.azure] = azureClient.openai;
-  };
-
-  if (req.body.assistant_id !== undefined) {
-    await initializeClients();
-  }
 
   const agentFiles = [];
 
@@ -167,26 +137,6 @@ const processDeleteRequest = async ({ req, files }) => {
       continue;
     }
 
-    if (checkOpenAIStorage(source) && !client[source]) {
-      await initializeClients();
-    }
-
-    const openai = client[source];
-
-    if (req.body.assistant_id && req.body.tool_resource) {
-      promises.push(
-        deleteResourceFileId({
-          req,
-          openai,
-          file_id: file.file_id,
-          assistant_id: req.body.assistant_id,
-          tool_resource: req.body.tool_resource,
-        }),
-      );
-    } else if (req.body.assistant_id) {
-      promises.push(openai.beta.assistants.files.del(req.body.assistant_id, file.file_id));
-    }
-
     if (deletionMethods[source]) {
       enqueueDeleteOperation({
         req,
@@ -194,7 +144,6 @@ const processDeleteRequest = async ({ req, files }) => {
         deleteFile: deletionMethods[source],
         promises,
         resolvedFileIds,
-        openai,
       });
       continue;
     }
@@ -205,7 +154,7 @@ const processDeleteRequest = async ({ req, files }) => {
     }
 
     deletionMethods[source] = deleteFile;
-    enqueueDeleteOperation({ req, file, deleteFile, promises, resolvedFileIds, openai });
+    enqueueDeleteOperation({ req, file, deleteFile, promises, resolvedFileIds });
   }
 
   if (agentFiles.length > 0) {
@@ -378,19 +327,9 @@ const uploadImageBuffer = async ({ req, context, metadata = {}, resize = true })
  */
 const processFileUpload = async ({ req, res, metadata }) => {
   const appConfig = req.config;
-  const isAssistantUpload = isAssistantsEndpoint(metadata.endpoint);
-  const assistantSource =
-    metadata.endpoint === EModelEndpoint.azureAssistants ? FileSources.azure : FileSources.openai;
-  // Use the configured file strategy for regular file uploads (not vectordb)
-  const source = isAssistantUpload ? assistantSource : appConfig.fileStrategy;
+  const source = appConfig.fileStrategy;
   const { handleFileUpload } = getStrategyFunctions(source);
   const { file_id, temp_file_id = null } = metadata;
-
-  /** @type {OpenAI | undefined} */
-  let openai;
-  if (checkOpenAIStorage(source)) {
-    ({ openai } = await getOpenAIClient({ req }));
-  }
 
   const { file } = req;
   const sanitizedUploadFn = createSanitizedUploadWrapper(handleFileUpload);
@@ -398,7 +337,7 @@ const processFileUpload = async ({ req, res, metadata }) => {
     id,
     bytes,
     filename,
-    filepath: _filepath,
+    filepath,
     embedded,
     height,
     width,
@@ -406,33 +345,7 @@ const processFileUpload = async ({ req, res, metadata }) => {
     req,
     file,
     file_id,
-    openai,
   });
-
-  if (isAssistantUpload && !metadata.message_file && !metadata.tool_resource) {
-    await openai.beta.assistants.files.create(metadata.assistant_id, {
-      file_id: id,
-    });
-  } else if (isAssistantUpload && !metadata.message_file) {
-    await addResourceFileId({
-      req,
-      openai,
-      file_id: id,
-      assistant_id: metadata.assistant_id,
-      tool_resource: metadata.tool_resource,
-    });
-  }
-
-  let filepath = isAssistantUpload ? `${openai.baseURL}/files/${id}` : _filepath;
-  if (isAssistantUpload && file.mimetype.startsWith('image')) {
-    const result = await processImageFile({
-      req,
-      file,
-      metadata: { file_id: v4() },
-      returnFile: true,
-    });
-    filepath = result.filepath;
-  }
 
   const result = await db.createFile(
     {
@@ -442,8 +355,7 @@ const processFileUpload = async ({ req, res, metadata }) => {
       bytes,
       filepath,
       filename: filename ?? sanitizeFilename(file.originalname),
-      context: isAssistantUpload ? FileContext.assistants : FileContext.message_attachment,
-      model: isAssistantUpload ? req.body.model : undefined,
+      context: FileContext.message_attachment,
       type: file.mimetype,
       embedded,
       source,

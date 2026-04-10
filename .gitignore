@@ -177,4 +177,9 @@ claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 CLAUDE.md
+AGENTS.md
+planner.md
+tasks.md
+/docs/architecture.md
+/docs/prd.md
 .gsd

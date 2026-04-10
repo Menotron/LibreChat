@@ -16,7 +16,6 @@ const {
   EModelEndpoint,
   PermissionBits,
   checkOpenAIStorage,
-  isAssistantsEndpoint,
 } = require('librechat-data-provider');
 const {
   filterFile,
@@ -26,14 +25,12 @@ const {
 } = require('~/server/services/Files/process');
 const { fileAccess } = require('~/server/middleware/accessResources/fileAccess');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
-const { getOpenAIClient } = require('~/server/controllers/assistants/helpers');
 const { hasCapability } = require('~/server/middleware/roles/capabilities');
 const { checkPermission } = require('~/server/services/PermissionService');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
 const { hasAccessToFilesViaAgent } = require('~/server/services/Files');
 const { cleanFileName } = require('~/server/utils/files');
 const { getLogStores } = require('~/cache');
-const { Readable } = require('stream');
 const db = require('~/models');
 
 const router = express.Router();
@@ -223,28 +220,6 @@ router.delete('/', async (req, res) => {
       return;
     }
 
-    /* Handle assistant unlinking even if no valid files to delete */
-    if (req.body.assistant_id && req.body.tool_resource && dbFiles.length === 0) {
-      const assistant = await db.getAssistant({
-        id: req.body.assistant_id,
-      });
-
-      const toolResourceFiles = assistant.tool_resources?.[req.body.tool_resource]?.file_ids ?? [];
-      const assistantFiles = files.filter((f) => toolResourceFiles.includes(f.file_id));
-
-      await processDeleteRequest({ req, files: assistantFiles });
-      res.status(200).json({ message: 'File associations removed successfully from assistant' });
-      return;
-    } else if (
-      req.body.assistant_id &&
-      req.body.files?.[0]?.filepath === EModelEndpoint.azureAssistants
-    ) {
-      await processDeleteRequest({ req, files: req.body.files });
-      return res
-        .status(200)
-        .json({ message: 'File associations removed successfully from Azure Assistant' });
-    }
-
     await processDeleteRequest({ req, files: authorizedFiles });
 
     logger.debug(
@@ -330,39 +305,14 @@ router.get('/download/:userId/:file_id', fileAccess, async (req, res) => {
       res.setHeader('X-File-Metadata', JSON.stringify(file));
     };
 
-    if (checkOpenAIStorage(file.source)) {
-      req.body = { model: file.model };
-      const endpointMap = {
-        [FileSources.openai]: EModelEndpoint.assistants,
-        [FileSources.azure]: EModelEndpoint.azureAssistants,
-      };
-      const { openai } = await getOpenAIClient({
-        req,
-        res,
-        overrideEndpoint: endpointMap[file.source],
-      });
-      logger.debug(`Downloading file ${file_id} from OpenAI`);
-      const passThrough = await getDownloadStream(file_id, openai);
-      setHeaders();
-      logger.debug(`File ${file_id} downloaded from OpenAI`);
+    const fileStream = await getDownloadStream(req, file.filepath);
 
-      // Handle both Node.js and Web streams
-      const stream =
-        passThrough.body && typeof passThrough.body.getReader === 'function'
-          ? Readable.fromWeb(passThrough.body)
-          : passThrough.body;
+    fileStream.on('error', (streamError) => {
+      logger.error('[DOWNLOAD ROUTE] Stream error:', streamError);
+    });
 
-      stream.pipe(res);
-    } else {
-      const fileStream = await getDownloadStream(req, file.filepath);
-
-      fileStream.on('error', (streamError) => {
-        logger.error('[DOWNLOAD ROUTE] Stream error:', streamError);
-      });
-
-      setHeaders();
-      fileStream.pipe(res);
-    }
+    setHeaders();
+    fileStream.pipe(res);
   } catch (error) {
     logger.error('[DOWNLOAD ROUTE] Error downloading file:', error);
     res.status(500).send('Error downloading file');
@@ -378,10 +328,6 @@ router.post('/', async (req, res) => {
 
     metadata.temp_file_id = metadata.file_id;
     metadata.file_id = req.file_id;
-
-    if (isAssistantsEndpoint(metadata.endpoint)) {
-      return await processFileUpload({ req, res, metadata });
-    }
 
     let skipUploadAuth = false;
     try {

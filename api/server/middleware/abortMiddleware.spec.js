@@ -69,10 +69,6 @@ jest.mock('~/models', () => ({
   getCacheMultiplier: mockGetCacheMultiplier,
 }));
 
-jest.mock('./abortRun', () => ({
-  abortRun: jest.fn(),
-}));
-
 const { spendCollectedUsage } = require('./abortMiddleware');
 
 describe('abortMiddleware - spendCollectedUsage', () => {

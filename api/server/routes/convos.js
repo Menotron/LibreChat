@@ -3,7 +3,7 @@ const express = require('express');
 const { sleep } = require('@librechat/agents');
 const { isEnabled, resolveImportMaxFileSize } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
-const { CacheKeys, EModelEndpoint } = require('librechat-data-provider');
+const { CacheKeys } = require('librechat-data-provider');
 const {
   createImportLimiters,
   validateConvoAccess,
@@ -16,11 +16,6 @@ const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { importConversations } = require('~/server/utils/import');
 const getLogStores = require('~/cache/getLogStores');
 const db = require('~/models');
-
-const assistantClients = {
-  [EModelEndpoint.azureAssistants]: require('~/server/services/Endpoints/azureAssistants'),
-  [EModelEndpoint.assistants]: require('~/server/services/Endpoints/assistants'),
-};
 
 const router = express.Router();
 router.use(requireJwtAuth);
@@ -109,20 +104,6 @@ router.delete('/', async (req, res) => {
     filter = { conversationId };
   } else if (source === 'button') {
     return res.status(200).send('No conversationId provided');
-  }
-
-  if (
-    typeof endpoint !== 'undefined' &&
-    Object.prototype.propertyIsEnumerable.call(assistantClients, endpoint)
-  ) {
-    /** @type {{ openai: OpenAI }} */
-    const { openai } = await assistantClients[endpoint].initializeClient({ req, res });
-    try {
-      const response = await openai.beta.threads.delete(thread_id);
-      logger.debug('Deleted OpenAI thread:', response);
-    } catch (error) {
-      logger.error('Error deleting OpenAI thread:', error);
-    }
   }
 
   try {

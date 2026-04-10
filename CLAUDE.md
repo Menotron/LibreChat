@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # LibreChat
 
 ## Project Overview
@@ -24,6 +28,56 @@ The source code for `@librechat/agents` (major backend dependency, same team) is
 - Database-specific shared logic goes in `/packages/data-schemas`.
 - Frontend/backend shared API logic (endpoints, types, data-service) goes in `/packages/data-provider`.
 - Build data-provider from project root: `npm run build:data-provider`.
+
+---
+
+## Architecture
+
+### Backend
+
+Express.js server in `/api` acts as a thin JS wrapper. New backend logic lives in `/packages/api` (TypeScript). The server loads middleware in this order: health check → JSON/URL parsing (3mb limit) → mongoSanitize → CORS → cookie parser → optional compression → static file caching → Passport auth → capability context cache → tenant middleware → route handlers → error handler.
+
+**Key route mounts:** `/api/auth`, `/api/admin/*`, `/api/user`, `/api/messages`, `/api/convos`, `/api/assistants`, `/api/agents`, `/api/files`, `/api/config`, `/api/mcp`, `/oauth`. Unmatched routes fall through to the SPA `index.html`.
+
+**`/packages/api` modules:** `acl/` (access control), `admin/`, `agents/`, `app/` (librechat.yaml config), `auth/` (multi-tenant, OpenID, PKCE), `cache/` (Redis or in-memory), `endpoints/` (LLM abstractions), `files/`, `flow/` (agent orchestration), `mcp/`, `middleware/`, `stream/` (resumable SSE), `storage/` (S3/Firebase/local), `tools/`.
+
+### Authentication & Multi-Tenancy
+
+Auth uses Passport.js with strategies: local, JWT, LDAP, OAuth 2.0 (Google/GitHub/Discord/etc.), SAML 2.0, OpenID Connect. All strategies are in `/api/server/strategies/`.
+
+Multi-tenant isolation: `tenantContextMiddleware` in `/packages/api/src/middleware/tenant.ts` propagates `req.user.tenantId` into AsyncLocalStorage. A Mongoose plugin reads ALS context to auto-scope all queries to the current tenant. Strict mode (`TENANT_ISOLATION_STRICT=true`) returns 403 for requests without tenantId. Reverse proxy sets `X-Tenant-Id` header.
+
+### Authorization (RBAC)
+
+Three-tier: **Roles** (collections of capabilities) → **Capabilities** (fine-grained permissions like `can_create_agent`) → **Grants** (user/group → role at platform or tenant level). Capability checks are cached per-request via `capabilityContextMiddleware`.
+
+### Streaming (SSE)
+
+Two-phase resumable pattern: (1) Client POSTs to start generation → server creates job with `jobId` → returns `{ jobId }`. (2) Client GETs EventSource at `/api/stream/{jobId}` → server replays buffered events + streams new ones. Navigation away closes SSE but does NOT abort generation. Explicit abort via `/api/abort?jobId=X`.
+
+`GenerationJobManager` in `/packages/api/src/stream/` uses pluggable `IJobStore` (InMemory or Redis) and `IEventTransport` (InMemory or Redis Pub/Sub) for horizontal scaling. Late subscribers reconnect with sync events to prevent duplicates.
+
+### Frontend
+
+React 18 SPA in `/client` with hybrid state management:
+
+- **React Query** (`@tanstack/react-query`) — server state, caching, background refetch. Hooks in `packages/data-provider/src/react-query/`.
+- **Recoil** (`client/src/store/`) — ephemeral UI state (atoms/families for per-index state like stop buttons, settings toggles).
+- **React Context** (`client/src/Providers/`) — feature-scoped state (ChatContext, AgentsContext, ArtifactContext, etc.).
+
+UI stack: Tailwind CSS + Radix UI (headless accessible components) + Lucide icons + Framer Motion. Code editor: Monaco. Markdown: react-markdown + remark/rehype plugins (syntax highlighting, KaTeX).
+
+SSE hooks in `client/src/hooks/SSE/`: `useResumableSSE.ts` (primary, with auto-reconnection and exponential backoff), `useAdaptiveSSE.ts` (fallback), `useSSE.ts` (legacy simple).
+
+### Configuration
+
+- **`.env`** — server config (HOST, PORT, MONGO_URI), auth provider keys, feature flags (`ALLOW_SOCIAL_LOGIN`, `LDAP_URL`), scaling (`USE_REDIS`), debugging (`DEBUG_LOGGING`, `AGENT_DEBUG_LOGGING`).
+- **`librechat.yaml`** — app-level config (Zod-validated in `/packages/data-schemas/src/config/`): endpoint definitions, model settings, file storage strategies, UI customization (welcome message, ToS), feature toggles (agents, prompts, bookmarks). Override location via `CONFIG_PATH` env var.
+- **File storage** — pluggable per file type: `fileStrategy: { avatar: "s3", image: "firebase", document: "local" }`. Implementations in `/packages/api/src/storage/`.
+
+### Build Pipeline
+
+Turbo orchestrates parallel cached builds. Dependency graph: `data-provider` (leaf) → `data-schemas` → `packages/api` → (parallel) `packages/client` → `client`. Packages use Rollup (CJS + ESM output). Frontend uses Vite (HMR dev server on port 3090, proxies `/api` to backend on 3080).
 
 ---
 
@@ -142,6 +196,8 @@ Multi-line imports count total character length across all lines. Consolidate va
 | `npm run frontend` | Build all compiled code sequentially (legacy fallback) |
 | `npm run frontend:dev` | Start frontend dev server with HMR (port 3090, requires backend running) |
 | `npm run build:data-provider` | Rebuild `packages/data-provider` after changes |
+| `npm run lint` | ESLint across all workspaces |
+| `npm run lint:fix` | Auto-fix lint errors |
 
 - Node.js: v20.19.0+ or ^22.12.0 or >= 23.0.0
 - Database: MongoDB
@@ -165,8 +221,43 @@ Multi-line imports count total character length across all lines. Consolidate va
 - Only mock what you cannot control: external HTTP APIs, rate-limited services, non-deterministic system calls.
 - Heavy mocking is a code smell, not a testing strategy.
 
+### E2E Tests (Playwright)
+
+- Config: `e2e/playwright.config.local.ts` (local), `e2e/playwright.config.ts` (CI).
+- Specs: `e2e/specs/*.spec.ts` — landing, messages, settings, keys, navigation, a11y.
+- Auth state reused from `e2e/storageState.json`. Tests run against a real backend.
+- `npm run e2e` (headless), `npm run e2e:headed` (visible browser), `npm run e2e:debug` (PWDEBUG=1).
+- `npm run e2e:a11y` runs accessibility audits via `@axe-core/playwright`.
+- `npm run e2e:codegen` generates test code from browser interactions.
+
 ---
 
 ## Formatting
 
 Fix all formatting lint errors (trailing spaces, tabs, newlines, indentation) using auto-fix when available. All TypeScript/ESLint warnings and errors **must** be resolved.
+
+## Memory & Context
+
+Before starting work, read:
+
+- `.claude/memory/MEMORY.md` — index of all local memory files
+- `planner.md` — current goals and open decisions
+- `tasks.md` — current task state
+
+Keep these files updated as work progresses.
+
+Always use project memory files in .claude over user level memory and plan files in ~/.claude
+
+## Commit Discipline
+
+Commit after a complete **plan -> implement -> validate** cycle. Do not commit minor intermediate edits. Commits represent coherent, reviewable progress. One feature or substantial task = one commit boundary.
+
+## Behaviour
+
+- Read existing files before writing code.
+- Prefer editing over rewriting.
+- Do not re-read files unless they may have changed since last read.
+- Test before declaring done.
+- Be concise in output, thorough in reasoning.
+- No openers, closers, or filler.
+- User instructions override this file.

@@ -43,15 +43,11 @@ function buildSharedPayload() {
   /** @type {Partial<TStartupConfig>} */
   const payload = {
     appTitle: process.env.APP_TITLE || 'LibreChat',
-    discordLoginEnabled: !!process.env.DISCORD_CLIENT_ID && !!process.env.DISCORD_CLIENT_SECRET,
-    facebookLoginEnabled: !!process.env.FACEBOOK_CLIENT_ID && !!process.env.FACEBOOK_CLIENT_SECRET,
-    githubLoginEnabled: !!process.env.GITHUB_CLIENT_ID && !!process.env.GITHUB_CLIENT_SECRET,
-    googleLoginEnabled: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
-    appleLoginEnabled:
-      !!process.env.APPLE_CLIENT_ID &&
-      !!process.env.APPLE_TEAM_ID &&
-      !!process.env.APPLE_KEY_ID &&
-      !!process.env.APPLE_PRIVATE_KEY_PATH,
+    discordLoginEnabled: false,
+    facebookLoginEnabled: false,
+    githubLoginEnabled: false,
+    googleLoginEnabled: false,
+    appleLoginEnabled: false,
     openidLoginEnabled: isOpenIdEnabled,
     openidLabel: process.env.OPENID_BUTTON_LABEL || 'Continue with OpenID',
     openidImageUrl: process.env.OPENID_IMAGE_URL,

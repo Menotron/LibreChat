@@ -18,12 +18,6 @@ const mockBuildOptions = jest.fn((_endpoint, parsedBody) => ({
   endpoint: _endpoint,
 }));
 
-jest.mock('~/server/services/Endpoints/azureAssistants', () => ({
-  buildOptions: mockBuildOptions,
-}));
-jest.mock('~/server/services/Endpoints/assistants', () => ({
-  buildOptions: mockBuildOptions,
-}));
 jest.mock('~/server/services/Endpoints/agents', () => ({
   buildOptions: mockBuildOptions,
 }));
