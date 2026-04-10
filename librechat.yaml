@@ -107,7 +107,7 @@ endpoints:
           - 'databricks-gemma-3-12b'
         fetch: false
       titleConvo: true
-      titleModel: 'databricks-claude-haiku-4-5'
+      titleModel: 'databricks-gpt-oss-20b'
       modelDisplayLabel: 'AI Gateway'
       iconURL: '/assets/databricks.svg'
       # Drop params not supported by Databricks gateway (adjust as needed)
