@@ -91,16 +91,23 @@ endpoints:
       baseURL: '${DATABRICKS_GATEWAY_URL}'
       models:
         default:
-          - 'llama-3-1-70b-instruct'
-          - 'llama-3-1-8b-instruct'
-          - 'gemma-2-27b-it'
-          - 'gpt-4o'
-          - 'gpt-4o-mini'
-          - 'claude-sonnet'
-        # Set to true if your Databricks AI Gateway supports /v1/models
+          - 'databricks-claude-opus-4-6'
+          - 'databricks-claude-sonnet-4-6'
+          - 'databricks-claude-sonnet-4-5'
+          - 'databricks-claude-opus-4-5'
+          - 'databricks-claude-opus-4-1'
+          - 'databricks-claude-sonnet-4'
+          - 'databricks-claude-3-7-sonnet'
+          - 'databricks-claude-haiku-4-5'
+          - 'databricks-gpt-oss-120b'
+          - 'databricks-gpt-oss-20b'
+          - 'databricks-llama-4-maverick'
+          - 'databricks-meta-llama-3-3-70b-instruct'
+          - 'databricks-meta-llama-3-1-8b-instruct'
+          - 'databricks-gemma-3-12b'
         fetch: false
       titleConvo: true
-      titleModel: 'gpt-4o-mini'
+      titleModel: 'databricks-claude-haiku-4-5'
       modelDisplayLabel: 'AI Gateway'
       iconURL: '/assets/databricks.svg'
       # Drop params not supported by Databricks gateway (adjust as needed)
