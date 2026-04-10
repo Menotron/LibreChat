@@ -1,0 +1,110 @@
+# Enterprise LibreChat Configuration
+# Databricks AI Gateway as exclusive LLM provider
+# https://www.librechat.ai/docs/configuration/librechat_yaml
+
+version: 1.3.7
+
+cache: true
+
+# File storage (local for now, switch to Azure Blob in production)
+fileStrategy: "local"
+
+# Interface configuration
+interface:
+  customWelcome: 'Welcome to Enterprise AI. Select a model and start chatting.'
+  fileSearch: true
+  privacyPolicy:
+    externalUrl: 'https://yourcompany.com/privacy'
+    openNewTab: true
+  termsOfService:
+    externalUrl: 'https://yourcompany.com/terms'
+    openNewTab: true
+    modalAcceptance: true
+    modalTitle: 'Terms of Service'
+    modalContent: |
+      # Enterprise AI Platform Terms of Service
+
+      By using this platform, you agree to the organization's acceptable use policy.
+      Do not input classified or restricted data unless explicitly authorized.
+
+  modelSelect: true
+  parameters: true
+  presets: true
+  prompts:
+    use: true
+    create: true
+    share: true
+    public: false
+  bookmarks: true
+  multiConvo: true
+  agents:
+    use: true
+    create: true
+    share: true
+    public: false
+  mcpServers:
+    use: true
+    create: true
+    share: false
+    public: false
+  peoplePicker:
+    users: true
+    groups: true
+    roles: true
+  marketplace:
+    use: false
+  fileCitations: true
+
+# Registration: OpenID only (Azure AD)
+registration:
+  socialLogins: ['openid']
+  # allowedDomains:
+  #   - "yourcompany.com"
+
+# Agent Actions domain restrictions
+actions:
+  allowedDomains:
+    - 'yourcompany.com'
+    # Add internal API domains as needed
+
+# MCP Server domain restrictions
+# mcpSettings:
+#   allowedDomains:
+#     - 'yourcompany.com'
+#     - 'localhost'
+
+# Endpoints: Databricks AI Gateway only
+endpoints:
+  agents:
+    recursionLimit: 50
+    maxRecursionLimit: 100
+    disableBuilder: false
+    capabilities: ["deferred_tools", "execute_code", "file_search", "actions", "tools"]
+    # Restrict agent provider to Databricks only
+    # allowedProviders:
+    #   - "Databricks"
+
+  custom:
+    # Databricks AI Gateway (OpenAI-compatible)
+    - name: 'Databricks'
+      apiKey: '${DATABRICKS_API_KEY}'
+      baseURL: '${DATABRICKS_GATEWAY_URL}'
+      models:
+        default:
+          - 'llama-3-1-70b-instruct'
+          - 'llama-3-1-8b-instruct'
+          - 'gemma-2-27b-it'
+          - 'gpt-4o'
+          - 'gpt-4o-mini'
+          - 'claude-sonnet'
+        # Set to true if your Databricks AI Gateway supports /v1/models
+        fetch: false
+      titleConvo: true
+      titleModel: 'gpt-4o-mini'
+      modelDisplayLabel: 'AI Gateway'
+      iconURL: '/assets/databricks.svg'
+      # Drop params not supported by Databricks gateway (adjust as needed)
+      # dropParams: ['stop', 'user', 'frequency_penalty', 'presence_penalty']
+      # Add custom headers for governance tracking
+      # headers:
+      #   x-conversation-id: '{{LIBRECHAT_BODY_CONVERSATIONID}}'
