@@ -174,7 +174,7 @@ const oAuthIdFields = [
 for (const field of oAuthIdFields) {
   userSchema.index(
     { [field]: 1, tenantId: 1 },
-    { unique: true, partialFilterExpression: { [field]: { $exists: true } } },
+    { unique: true, sparse: true },
   );
 }
 

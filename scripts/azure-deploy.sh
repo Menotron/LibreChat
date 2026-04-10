@@ -20,9 +20,9 @@ set -euo pipefail
 #=============================================================================
 
 # Naming convention: <prefix>-<service>-<env>
-PREFIX="enterprise-ai"
-ENV="prod"                          # prod | dev | staging
-LOCATION="eastus"                   # Azure region
+PREFIX="ges-ai"
+ENV="dev"                           # prod | dev | staging
+LOCATION="westeurope"               # Azure region
 RESOURCE_GROUP="rg-${PREFIX}-${LOCATION}"
 
 # Cosmos DB
@@ -281,18 +281,20 @@ az webapp config appsettings set \
     "DATABRICKS_API_KEY=@Microsoft.KeyVault(SecretUri=${KEYVAULT_URI}/secrets/DATABRICKS-API-KEY)" \
     "AZURE_STORAGE_CONNECTION_STRING=${STORAGE_CONN}" \
     "AZURE_STORAGE_CONTAINER_NAME=${STORAGE_CONTAINER}" \
+    "DOMAIN_CLIENT=https://${APP_SERVICE_NAME}.azurewebsites.net" \
+    "DOMAIN_SERVER=https://${APP_SERVICE_NAME}.azurewebsites.net" \
   --only-show-errors
 
 echo "  App settings configured with Key Vault references."
 echo ""
 echo "  MANUAL: Set these in Azure Portal or via 'az webapp config appsettings set':"
-echo "    DATABRICKS_GATEWAY_URL=https://<workspace>.azuredatabricks.net/serving-endpoints/<gateway>/invocations/v1"
+echo "    DATABRICKS_GATEWAY_URL=https://<workspace-id>.<region>.ai-gateway.azuredatabricks.net/mlflow/v1"
+echo ""
+echo "  OPTIONAL (Azure AD SSO — skip for local-auth-only testing):"
 echo "    OPENID_CLIENT_ID=<app-registration-client-id>"
 echo "    OPENID_CLIENT_SECRET=<app-registration-secret> (or Key Vault ref)"
 echo "    OPENID_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0"
 echo "    OPENID_SESSION_SECRET=<openssl rand -hex 32>"
-echo "    DOMAIN_CLIENT=https://${APP_SERVICE_NAME}.azurewebsites.net"
-echo "    DOMAIN_SERVER=https://${APP_SERVICE_NAME}.azurewebsites.net"
 echo ""
 
 #=============================================================================

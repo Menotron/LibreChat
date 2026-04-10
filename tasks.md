@@ -48,6 +48,8 @@ All todos and phased tasks for the current work stream.
 - [x] Create docker-compose.azure.yml (local production-like testing)
 - [x] Add Azure Blob Storage config to .env.enterprise
 - [x] Update librechat.yaml fileStrategy comment
+- [ ] Fix Cosmos DB compatibility: remove partialFilterExpression from user.ts, file.ts, group.ts
+- [ ] Update .env.enterprise Cosmos DB connection string (retryWrites=false, ssl=true)
 - [ ] Provision Azure resources (run azure-deploy.sh with real subscription)
 - [ ] Build and push Docker image to ACR
 - [ ] Configure remaining app settings (DATABRICKS_GATEWAY_URL, OPENID_*)

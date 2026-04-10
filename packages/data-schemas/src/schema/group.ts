@@ -51,10 +51,7 @@ const groupSchema = new Schema<IGroup>(
 
 groupSchema.index(
   { idOnTheSource: 1, source: 1, tenantId: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { idOnTheSource: { $exists: true } },
-  },
+  { unique: true, sparse: true },
 );
 groupSchema.index({ memberIds: 1 });
 

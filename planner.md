@@ -46,6 +46,11 @@ Phases 1 (config), 2 (branding), and 4 (pruning) complete. Phase 3 Azure infra s
 | 2026-04-10 | Direct CSS edit over REACT_APP_THEME_* | REACT_APP_THEME_* requires Vite envPrefix + Docker ARGs; CSS edit is simpler | Done |
 | 2026-04-10 | Dockerfile.enterprise based on Dockerfile.multi | Adds HEALTHCHECK, OCI labels, baked librechat.yaml | Done |
 | 2026-04-10 | Azure deploy script (not Bicep/Terraform) | Simple az CLI for initial provisioning, IaC later if needed | Done |
+| 2026-04-10 | App Service first, AKS later | Helm chart exists in helm/ for migration. App Service simpler for pilot (~$50-100/mo vs $300+). HPA templates ready | Confirmed |
+| 2026-04-10 | Cosmos DB for MongoDB API v7.0 | 85% compatible. Fix: partial filter indexes (3 schemas), disable GridFS cache, add retryWrites=false | In Progress |
+| 2026-04-10 | Doc generation via code sandbox | No native binary file output. Use code execution (python-pptx, python-docx, fpdf2) for PPTX/DOCX/PDF generation | Planned |
+| 2026-04-10 | AionUi — concepts only, no code adoption | Different arch (Electron/SQLite/Bun). Worth stealing: scheduled tasks, OfficeCLI concept. Not worth porting code | Decided |
+| 2026-04-10 | OpenCode — future MCP integration only | Code-focused CLI, no document handling. Keep as Sprint 5-6 MCP server wrapper | Confirmed |
 
 ## Learnings
 
@@ -71,6 +76,14 @@ Phases 1 (config), 2 (branding), and 4 (pruning) complete. Phase 3 Azure infra s
 | 2026-04-10 | dropParams fix: stripping user/stop/frequencyPenalty/etc. from request body fixes Anthropic 400 | Codespace testing | dropParams must be camelCase |
 | 2026-04-10 | All 14 models confirmed working: opus-4-6/4-5/4-1, sonnet-4-6/4-5/4, haiku-4-5, 3-7-sonnet, gpt-oss-120b/20b, llama-4-maverick, llama-3-3-70b, llama-3-1-8b, gemma-3-12b | Codespace testing | Full model coverage |
 | 2026-04-10 | Multi-turn + model switching mid-conversation works | Codespace testing | Core UX validated |
+| 2026-04-10 | LibreChat has built-in doc parsing: PDF (pdfjs-dist), DOCX (mammoth), XLSX (xlsx), ODT (yauzl) | Codebase exploration | No PPTX parser — needs Mistral OCR or RAG sidecar |
+| 2026-04-10 | Multimodal fully wired: provider-specific image encoding (OpenAI, Anthropic, Google, Bedrock) | Codebase exploration | Image upload works out of the box |
+| 2026-04-10 | OCR fallback chain: Mistral OCR → Document Parser → RAG API → native text | Codebase exploration | Multiple fallback layers for doc processing |
+| 2026-04-10 | Artifacts are text-only output (code, HTML, markdown) — no binary file generation | Codebase exploration | PPTX/DOCX/PDF gen requires code execution sandbox |
+| 2026-04-10 | Cosmos DB partial filter expressions NOT supported — 3 index defs in user.ts, file.ts, group.ts | Codebase + Cosmos docs | Must patch before deploy |
+| 2026-04-10 | GridFSBucket in keyvMongo.ts not Cosmos-compatible — use Redis cache instead | Codebase + Cosmos docs | Redis already planned (Sprint 1.5) |
+| 2026-04-10 | Transactions: LibreChat already has graceful fallback via supportsTransactions() | Codebase exploration | Cosmos DB transactions work if replica set enabled |
+| 2026-04-10 | Helm chart in helm/librechat/ is production-ready (HPA, probes, Redis/Mongo/Meili bundled) | Codebase exploration | AKS migration path clear when needed |
 
 ## Open Questions
 
