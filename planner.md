@@ -25,7 +25,9 @@ LibreChat evolves rapidly. We ride that wave rather than diverge from it.
 
 ## Current Phase
 
-Phases 1, 2, and 4 complete. Phase 3 infrastructure scripts ready. Codespace smoke test complete — all 14 models confirmed working through Databricks AI Gateway. ENDPOINTS=custom (agents hidden until pre-built agents are ready). Next: Azure resource provisioning (Phase 3 execution), Phase 5 (RAG + governance), Phase 6 (hardening).
+Phases 1 (config), 2 (branding), and 4 (pruning) complete. Phase 3 Azure infra scripts ready but not executed. Codespace smoke test complete — all 14 models confirmed working through Databricks AI Gateway. ENDPOINTS=custom (agents hidden until pre-built agents are ready).
+
+**Next milestone:** Phase 3 execution (Azure resource provisioning), then Sprint 1 (config-only feature enablement). Full roadmap through Sprint 6 documented below. Sprint 1 is blocked on Azure deployment — no config changes until infrastructure is live.
 
 ## Decisions Log
 
@@ -74,9 +76,13 @@ Phases 1, 2, and 4 complete. Phase 3 infrastructure scripts ready. Codespace smo
 
 - How to handle model list maintenance in production? (Options: hardcode in YAML, or build /v1/models proxy)
 - Azure AD group-based access control config (OPENID_REQUIRED_ROLE) — needs testing with real Entra ID
-- RAG API embedding model — can Databricks serve embeddings for LibreChat RAG?
+- RAG API embedding model — can Databricks serve embeddings for LibreChat RAG? Or use self-hosted embeddings?
 - Upstream sync cadence — what's the right rhythm? Per-release, monthly, or triggered by specific features?
 - Feature parity tracking — how do we systematically identify upstream features worth adopting?
+- Code execution sandbox — use LibreChat hosted API or self-host Piston?
+- Content moderation — route through Databricks or Azure Content Safety API?
+- OpenCode integration approach — MCP server wrapper or deeper UI integration?
+- SearXNG vs Serper for web search — cost vs data sovereignty tradeoff
 
 ## Phase Plan
 
@@ -111,18 +117,85 @@ Phases 1, 2, and 4 complete. Phase 3 infrastructure scripts ready. Codespace smo
 - [x] Update .devcontainer for Codespaces
 - [x] Fix all affected imports, tests, and file operations
 
-### Phase 5: Enterprise Data & Governance [NOT STARTED]
-- RAG API setup
-- Databricks inference tables
-- OpenTelemetry
-- Audit & cost tracking
+### Sprint 1: Demo-Ready — Config Only [NOT STARTED]
+All items are config-only — touch `librechat.yaml`, `.env.enterprise`, `docker-compose.azure.yml`. No code changes. **Prerequisite: Azure deployment (Phase 3 execution) must complete first.**
 
-### Phase 6: Hardening [NOT STARTED]
-- Azure AD role gating
-- Domain allowlisting
-- Redis for sessions
-- Auto-scaling
-- Smoke tests
+- **1.1 System Prompts via modelSpecs [P0]** — Add `modelSpecs` with `enforce: true` in `librechat.yaml`. Curated model list with org-wide system prompts (`promptPrefix`), default params, capability flags. Existing code: `packages/data-schemas/src/app/specs.ts`, `packages/api/src/agents/load.ts`
+- **1.2 Re-enable Agents Endpoint [P0]** — Change `ENDPOINTS=custom` to `ENDPOINTS=custom,agents`. Create 2-3 pre-built agents via UI (Knowledge Agent, Code Agent, Data Analyst)
+- **1.3 Configure MCP Servers [P0]** — Add `mcpServers:` section in `librechat.yaml` with enterprise data access servers (filesystem, fetch, database). Lock user creation: `interface.mcpServers.create: false`
+- **1.4 Enable Web Search [P0]** — Add `webSearch:` section with Serper (Google API) + Jina reranking. Env vars: `SERPER_API_KEY`, `JINA_API_KEY`
+- **1.5 Enable Redis [P0]** — Uncomment `USE_REDIS=true`, `REDIS_URI`. Already wired in `docker-compose.azure.yml`
+- **1.6 Governance Headers [P1]** — Uncomment `headers:` block on Databricks endpoint — `x-conversation-id`, `x-user-id` for inference table correlation
+- **1.7 Enable Artifacts [P1]** — Set `artifacts: true` on modelSpecs. No additional config needed. Rich output: Mermaid diagrams, HTML preview, charts
+- **1.8 Azure AD Role Gating [P1]** — Set `OPENID_REQUIRED_ROLE`, `OPENID_ADMIN_ROLE` with Azure AD group IDs
+- **1.9 Domain Allowlisting [P1]** — Uncomment `registration.allowedDomains`, `mcpSettings.allowedDomains`, `actions.allowedDomains`
+
+### Sprint 2: Full Feature Stack — Config + Docker [NOT STARTED]
+Requires additional Docker services (vectordb, rag_api, meilisearch).
+
+- **2.1 RAG Pipeline [P0]** — Add `vectordb` (pgvector) and `rag_api` (librechat-rag-api) services to docker-compose. Configure `RAG_API_URL`, `EMBEDDINGS_PROVIDER`, `EMBEDDINGS_MODEL`. Decision needed: Can Databricks serve embeddings? Existing code: `packages/api/src/files/rag.ts`
+- **2.2 Enable Meilisearch [P1]** — Add meilisearch service, set `SEARCH=true`, `MEILI_HOST`, `MEILI_MASTER_KEY`
+- **2.3 Token Balance System [P1]** — Add `balance:` section (enabled, startBalance, autoRefill). Set `CHECK_BALANCE=true`. Existing code: `packages/data-schemas/src/schema/balance.ts`, `packages/api/src/agents/transactions.ts`
+- **2.4 Code Execution Sandbox [P1]** — Set `LIBRECHAT_CODE_API_KEY` for hosted sandbox, OR deploy self-hosted (Piston). Existing code: `packages/api/src/tools/classification.ts` checks `EnvVar.CODE_API_KEY`
+- **2.5 SearXNG Self-Hosted Search [P2]** — Add SearXNG container as alternative to Serper (no API key cost, queries don't leave network)
+
+### Sprint 3-4: Production-Ready — Code Changes [NOT STARTED]
+New enterprise modules — isolated in new files to minimize upstream merge friction.
+
+- **3.1 Structured Audit Trail [P0, High]** — New: `packages/data-schemas/src/schema/auditLog.ts`, `packages/api/src/audit/service.ts`, `packages/api/src/middleware/audit.ts`. MongoDB `AuditLog` collection: login/logout, role changes, agent CRUD, MCP tool execution, config changes. Wire into auth strategies, admin routes, agent controllers
+- **3.2 OpenTelemetry [P0, High]** — New: `packages/api/src/telemetry/init.ts`, `spans.ts`, `metrics.ts`. Auto-instrumentation (HTTP, Express, MongoDB, Redis) + custom spans for LLM calls, tool execution, MCP. Env: `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`. Export to Azure Monitor or Grafana
+- **3.3 Enhanced Health Check [P1, Med]** — New: `packages/api/src/health/detailed.ts`. `/api/health/detailed` reporting per-component status (MongoDB, Redis, Meilisearch, RAG API, MCP servers)
+- **3.4 Content Moderation [P1, Med]** — Option A: Route through Databricks moderation endpoint. Option B: New `packages/api/src/middleware/contentSafety.ts` for Azure Content Safety API
+- **3.5 Performance Tuning [P1, Config]** — `ENABLE_COMPRESSION=true`, MongoDB pool tuning (`maxPoolSize=50`), rate limit tuning
+- **3.6 Azure Blob Storage [P1, Config]** — Set `fileStrategy: "azure_blob"` in `librechat.yaml`. Existing code: `api/server/services/Files/Azure/`
+
+### Sprint 5-6: Enterprise-Grade — Advanced Code [NOT STARTED]
+
+- **4.1 Advanced Guardrails Engine [P2, High]** — New module: `packages/api/src/guardrails/`. Pluggable rules: PII detection, prompt injection, topic blocklist, output validation. Hook into agent pipeline pre/post LLM call
+- **4.2 OpenCode Integration [P2, High]** — Wrap as MCP server: `packages/api/src/mcp/servers/opencode/`. Go CLI for terminal-like code gen/execution. MCP bridge launches sessions, pipes results. Future: dedicated UI panel
+- **4.3 Custom Visualization Framework [P2, Med]** — Extend artifacts with chart renderers (Plotly, D3, Chart.js). New: `client/src/components/Artifacts/ChartRenderer.tsx`
+- **4.4 Advanced Agent Workflows [P2, Med]** — Multi-agent pipelines using graph edges (Research → Summarize, Code → Review). Already supported: `packages/api/src/agents/edges.ts`, `MultiAgentGraphConfig`
+- **4.5 Compliance Reporting [P2, Med]** — Admin dashboard: token usage by user/model, audit log search, session monitoring. Extend `api/server/routes/admin/`
+
+### Dependency Map
+
+```
+Sprint 1 (config-only, all parallel after Azure deploy):
+  1.1 modelSpecs → enables 1.7 Artifacts
+  1.2 Agents, 1.3 MCP, 1.4 Web Search, 1.5 Redis — independent
+  1.6 Governance Headers, 1.8 AD Roles, 1.9 Allowlists — independent
+
+Sprint 2 (config + docker):
+  2.1 RAG ← needs vectordb + rag_api containers
+  2.2 Meilisearch ← needs container
+  2.3 Token Balance, 2.4 Code Sandbox — independent
+
+Sprint 3-4 (code):
+  3.1 Audit Trail, 3.2 OpenTelemetry — independent
+  3.3 Health Check, 3.5 Perf Tuning, 3.6 Azure Blob — independent
+
+Sprint 5-6 (advanced):
+  4.1 Guardrails → extends 1.1 modelSpecs
+  4.2 OpenCode → extends 1.3 MCP
+  4.3 Visualizations → extends 1.7 Artifacts
+  4.4 Agent Workflows → extends 1.2 Agents
+  4.5 Compliance → depends on 3.1 Audit + 2.3 Balance
+```
+
+### Demo-Ready Verification Checklist
+
+After Sprint 1-2, the platform should demonstrate:
+- [ ] Multi-model chat with enforced system prompts (modelSpecs)
+- [ ] Pre-built agents with tool access (web search, file search, code execution)
+- [ ] MCP server integration for enterprise data access
+- [ ] Web search with reranking
+- [ ] Document upload + RAG retrieval with citations
+- [ ] Conversation search (Meilisearch)
+- [ ] Artifact rendering (Mermaid diagrams, HTML, code preview)
+- [ ] Token usage tracking per user
+- [ ] Azure AD SSO with role-based access
+- [ ] Redis-backed sessions with resumable streaming
+- [ ] Governance headers to Databricks inference tables
 
 ### Ongoing: Upstream Sync [RECURRING]
 - Monitor LibreChat releases for security patches, bug fixes, new features

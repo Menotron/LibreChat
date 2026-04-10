@@ -65,20 +65,48 @@ All todos and phased tasks for the current work stream.
 - [x] Verify syntax on all 14 modified files
 - [x] Commit and push to enterprise/phase4-pruning branch
 
-## Phase 5: Enterprise Data & Governance
+## Sprint 1: Demo-Ready — Config Only [BLOCKED: Azure deploy]
 
-- [ ] Enable RAG API with Databricks embeddings
-- [ ] Configure inference table logging
-- [ ] Add OpenTelemetry instrumentation
-- [ ] Set up audit and cost tracking
+All config-only. No code changes. **Prerequisite: Phase 3 Azure deployment must complete first.**
 
-## Phase 6: Hardening
+- [ ] 1.1 Add modelSpecs with enforce:true, system prompts, per-model params (librechat.yaml)
+- [ ] 1.2 Re-enable agents endpoint (ENDPOINTS=custom,agents), create pre-built agents
+- [ ] 1.3 Configure MCP servers in librechat.yaml, lock user creation
+- [ ] 1.4 Enable web search (Serper + Jina reranking)
+- [ ] 1.5 Enable Redis (USE_REDIS=true, REDIS_URI)
+- [ ] 1.6 Add governance headers (x-conversation-id, x-user-id) to Databricks endpoint
+- [ ] 1.7 Enable artifacts on modelSpecs
+- [ ] 1.8 Configure Azure AD role gating (OPENID_REQUIRED_ROLE, OPENID_ADMIN_ROLE)
+- [ ] 1.9 Configure domain allowlisting (registration, MCP, actions)
 
-- [ ] Azure AD role gating (OPENID_REQUIRED_ROLE)
-- [ ] Domain allowlisting
-- [ ] Redis for sessions/cache
-- [ ] Auto-scaling rules
-- [ ] E2E smoke tests for Azure AD + Databricks
+## Sprint 2: Full Feature Stack — Config + Docker [BLOCKED: Sprint 1]
+
+Requires additional Docker services.
+
+- [ ] 2.1 RAG pipeline: add vectordb + rag_api to docker-compose, configure embedding model
+- [ ] 2.2 Enable Meilisearch for conversation search
+- [ ] 2.3 Configure token balance system (per-user usage tracking)
+- [ ] 2.4 Enable code execution sandbox (hosted or self-hosted)
+- [ ] 2.5 Add SearXNG self-hosted search (optional, replaces Serper)
+
+## Sprint 3-4: Production-Ready — Code Changes [BLOCKED: Sprint 2]
+
+New enterprise modules in isolated files.
+
+- [ ] 3.1 Structured audit trail (MongoDB AuditLog collection)
+- [ ] 3.2 OpenTelemetry instrumentation (auto + custom spans)
+- [ ] 3.3 Enhanced health check endpoint (/api/health/detailed)
+- [ ] 3.4 Content moderation middleware
+- [ ] 3.5 Performance tuning (compression, DB pool, rate limits)
+- [ ] 3.6 Azure Blob Storage for file uploads
+
+## Sprint 5-6: Enterprise-Grade — Advanced [BLOCKED: Sprint 3-4]
+
+- [ ] 4.1 Advanced guardrails engine (PII, prompt injection, topic blocklist)
+- [ ] 4.2 OpenCode integration as MCP server
+- [ ] 4.3 Custom visualization framework (Plotly, D3, Chart.js in artifacts)
+- [ ] 4.4 Advanced multi-agent workflows (graph edges)
+- [ ] 4.5 Compliance reporting dashboard
 
 ---
 
