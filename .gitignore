@@ -183,3 +183,6 @@ tasks.md
 /docs/architecture.md
 /docs/prd.md
 .gsd
+
+# Windows/MSYS crash dumps
+*.stackdump

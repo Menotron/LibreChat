@@ -1,0 +1,136 @@
+name: Enterprise Deploy
+
+on:
+  push:
+    branches:
+      - enterprise/phase4-pruning
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/workflows/!(enterprise-*)'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: dev
+      image_tag:
+        description: 'Override image tag (leave empty for SHA-based)'
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_NAME: enterprise-ai
+
+jobs:
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    timeout-minutes: 30
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      full_image: ${{ steps.meta.outputs.full_image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            TAG=$(echo "${{ github.sha }}" | cut -c1-7)
+          fi
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "full_image=${{ vars.ACR_LOGIN_SERVER }}/${IMAGE_NAME}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push to ACR
+        run: |
+          az acr build \
+            --registry ${{ vars.ACR_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            --file Dockerfile.enterprise \
+            .
+
+      - name: Verify image in registry
+        run: |
+          az acr repository show-tags \
+            --name ${{ vars.ACR_NAME }} \
+            --repository ${{ env.IMAGE_NAME }} \
+            --query "[?@ == '${{ steps.meta.outputs.image_tag }}']" \
+            --output tsv
+
+  deploy:
+    name: Deploy to App Service
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update container image
+        run: |
+          az webapp config container set \
+            --name ${{ vars.APP_SERVICE_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --container-image-name ${{ needs.build.outputs.full_image }}
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --name ${{ vars.APP_SERVICE_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }}
+
+      - name: Wait for health check
+        run: |
+          APP_URL="https://${{ vars.APP_SERVICE_NAME }}.azurewebsites.net"
+          echo "Waiting for ${APP_URL}/health ..."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed on attempt ${i}"
+              exit 0
+            fi
+            echo "  Attempt ${i}/20: HTTP ${STATUS} — retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 5 minutes"
+          exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "### Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Image** | \`${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Registry** | \`${{ vars.ACR_LOGIN_SERVER }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **App Service** | \`${{ vars.APP_SERVICE_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **URL** | https://${{ vars.APP_SERVICE_NAME }}.azurewebsites.net |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,75 @@
+name: Enterprise PR Validation
+
+on:
+  pull_request:
+    branches:
+      - enterprise/phase4-pruning
+    types: [opened, synchronize, reopened]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build:data-provider
+          npm run build:data-schemas
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Backend tests
+        working-directory: api
+        run: npx jest --passWithNoTests --ci
+
+      - name: Data provider tests
+        working-directory: packages/data-provider
+        run: npx jest --passWithNoTests --ci
+
+      - name: Frontend build check
+        run: npm run frontend
+
+  docker-validate:
+    name: Validate Dockerfile
+    runs-on: ubuntu-latest
+    environment: dev
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build image (no push)
+        run: |
+          az acr build \
+            --registry ${{ vars.ACR_NAME }} \
+            --image enterprise-ai:pr-${{ github.event.pull_request.number }} \
+            --file Dockerfile.enterprise \
+            --no-push \
+            .
